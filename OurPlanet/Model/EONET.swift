@@ -39,8 +39,18 @@ class EONET {
   static let categoriesEndpoint = "/categories"
   static let eventsEndpoint = "/events"
 
+  static var categories: Observable<[EOCategory]> = {
+    let request: Observable<[EOCategory]> = EONET.request(endpoint: categoriesEndpoint,
+                                                         contentIdentifier: "categories")
+    return request.map { categories in
+      categories.sorted { $0.name < $1.name }
+    }
+    .catchErrorJustReturn([])
+    .share(replay: 1, scope: .forever)
+  }()
+
   static func request<T: Decodable>(endpoint: String,
-                                    query: [String: Any],
+                                    query: [String: Any] = [:],
                                     contentIdentifier: String) -> Observable<T> {
     do {
       guard let url = URL(string: API)?.appendingPathComponent(endpoint),
