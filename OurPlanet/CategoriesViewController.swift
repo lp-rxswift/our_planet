@@ -58,6 +58,16 @@ class CategoriesViewController: UIViewController, UITableViewDataSource, UITable
     cell.accessoryType = (category.events.count > 0) ? .disclosureIndicator : .none
     return cell
   }
-  
+
+  func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+    let category = categories.value[indexPath.row]
+    tableView.deselectRow(at: indexPath, animated: true)
+    guard !category.events.isEmpty else { return }
+    let eventsController = storyboard!
+        .instantiateViewController(identifier: "events") as! EventsViewController
+    eventsController.title = category.name
+    eventsController.events.accept(category.events)
+    navigationController!.pushViewController(eventsController, animated: true)
+  }
 }
 
