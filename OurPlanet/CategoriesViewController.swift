@@ -6,6 +6,7 @@ class CategoriesViewController: UIViewController, UITableViewDataSource, UITable
 
   @IBOutlet var tableView: UITableView!
   var activityIndicator: UIActivityIndicatorView!
+  let download = DownloadView()
   let categories = BehaviorRelay<[EOCategory]>(value: [])
   let disposeBag = DisposeBag()
 
@@ -15,6 +16,9 @@ class CategoriesViewController: UIViewController, UITableViewDataSource, UITable
     activityIndicator.color = .black
     navigationItem.rightBarButtonItem = UIBarButtonItem(customView: activityIndicator)
     activityIndicator.startAnimating()
+
+    view.addSubview(download)
+    view.layoutIfNeeded()
 
     categories
       .asObservable()
@@ -29,6 +33,9 @@ class CategoriesViewController: UIViewController, UITableViewDataSource, UITable
   }
 
   func startDownload() {
+    download.progress.progress = 0.0
+    download.label.text = "Download: 0%"
+
     let eoCategories = EONET.categories
     let downloadedEvents = eoCategories
       .flatMap { categories in
@@ -43,8 +50,8 @@ class CategoriesViewController: UIViewController, UITableViewDataSource, UITable
       .disposed(by: disposeBag)
 
     let updatedCategories = eoCategories.flatMap { categories in
-      downloadedEvents.scan(categories) { updated, events in
-        return updated.map { category in
+      downloadedEvents.scan((0,categories)) { tuple, events in
+        return (tuple.0 + 1, tuple.1.map { category in
           let eventsForCategory = EONET.filteredEvents(events: events, forCategory: category)
           if !eventsForCategory.isEmpty {
             var cat = category
@@ -52,16 +59,26 @@ class CategoriesViewController: UIViewController, UITableViewDataSource, UITable
             return cat
           }
           return category
-        }
+        })
       }
-    }.do(onCompleted: { [weak self] in
+    }
+    .do(onCompleted: { [weak self] in
       DispatchQueue.main.async {
         self?.activityIndicator.stopAnimating()
+        self?.download.isHidden = true
+      }
+    })
+    .do(onNext: { [weak self] tuple in
+      DispatchQueue.main.async {
+        let progress = Float(tuple.0) / Float(tuple.1.count)
+        self?.download.progress.progress = progress
+        let percent = Int(progress * 100.0)
+        self?.download.label.text = "Download: \(percent)%"
       }
     })
 
     eoCategories
-      .concat(updatedCategories)
+      .concat(updatedCategories.map(\.1))
       .bind(to: categories)
       .disposed(by: disposeBag)
   }
